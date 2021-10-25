@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+  	function isAuthenticated() {
+     return request.auth != null;
+  	}
+    
+    function isUser(userId) {
+    	return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // same functionality as isUser
+    function isProjectAuthor(authorId) {
+    	return isAuthenticated() && request.auth.uid == authorId;
+    }
+    
+    function getProjectDoc(projectId) {
+    	return get(/databases/$(database)/documents/projects/$(projectId))
+    }
+    
+    match /users/{user} {
+    	allow read, write: if isUser(user);
+    }
+    
+    match /subscriptions/{subscription} {
+    	allow write: if true;
+    }
+  
+  	match /projects/{project} {
+      allow create: if isAuthenticated();
+    	allow read, update, delete: if isProjectAuthor(resource.data.authorId);
+      
+      match /feedbacks/{feedback} {
+      	// read taken care by nextjs api middleware with firebase-admin sdk
+        allow create: if true;
+        allow update, delete, read: if isAuthenticated() && isProjectAuthor(getProjectDoc(project).data.authorId);
+      }
+    }
+  }
+}
